@@ -1,0 +1,385 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Stock Signal</title>
+<!--
+  Stock / ETF Signal — open in any browser. No install needed.
+  Ratings come from TradingView's public scanner (the numbers behind their
+  "Technicals" page); the chart is TradingView's free embed widget.
+-->
+<style>
+:root{
+  --bg:#f4f6fb;--card:#ffffff;--fg:#0f172a;--mut:#64748b;--line:#e5e9f2;--soft:#f8fafc;
+  --accent:#2563eb;--accent-soft:#eaf1ff;
+  --sb:#047857;--b:#16a34a;--n:#64748b;--s:#dc2626;--ss:#991b1b;
+  --sb-bg:#d1fae5;--b-bg:#dcfce7;--n-bg:#eef2f7;--s-bg:#fee2e2;--ss-bg:#fecaca;
+  --shadow:0 1px 2px rgba(15,23,42,.04),0 4px 16px rgba(15,23,42,.06);
+}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--fg);
+  font:15px/1.45 -apple-system,BlinkMacSystemFont,"Inter","Segoe UI",system-ui,sans-serif}
+.wrap{max-width:1180px;margin:0 auto;padding:28px 16px 48px}
+header{display:flex;align-items:center;gap:16px;flex-wrap:wrap;margin-bottom:18px}
+.brand{display:flex;align-items:center;gap:10px;font-weight:800;font-size:20px;letter-spacing:-.3px;margin-right:auto}
+.brand .dot{width:30px;height:30px;border-radius:9px;background:linear-gradient(135deg,#2563eb,#10b981)}
+form.search{display:flex;gap:8px;flex:1;max-width:460px;min-width:260px}
+input,button{font:inherit;color:inherit}
+input{flex:1;min-width:0;padding:11px 14px;border-radius:12px;border:1px solid var(--line);background:var(--card);
+  text-transform:uppercase;box-shadow:var(--shadow);outline:none}
+input:focus{border-color:var(--accent);box-shadow:0 0 0 3px var(--accent-soft)}
+.btn{padding:11px 18px;border-radius:12px;border:0;background:var(--accent);color:#fff;font-weight:650;cursor:pointer}
+.btn.ghost{background:var(--card);color:var(--fg);border:1px solid var(--line)}
+.seg{display:grid;grid-template-columns:repeat(4,1fr);gap:6px;background:var(--card);padding:6px;border-radius:14px;
+  box-shadow:var(--shadow);margin-bottom:18px}
+.seg button{border:0;background:transparent;border-radius:10px;padding:9px 6px;cursor:pointer;font-weight:600;line-height:1.2}
+.seg button small{display:block;color:var(--mut);font-weight:450;font-size:11.5px;margin-top:2px}
+.seg button.on{background:var(--accent-soft);color:var(--accent)}
+.seg button.on small{color:var(--accent)}
+.grid{display:grid;grid-template-columns:minmax(0,1fr) 380px;gap:18px;align-items:start}
+.col{display:flex;flex-direction:column;gap:18px;min-width:0}
+.card{background:var(--card);border-radius:18px;box-shadow:var(--shadow);padding:20px}
+.card h2{font-size:14px;font-weight:700;margin:0 0 14px;color:var(--mut);text-transform:uppercase;letter-spacing:.6px}
+.hero-top{display:flex;align-items:center;gap:14px;flex-wrap:wrap}
+.logo{width:48px;height:48px;border-radius:50%;background:var(--n-bg);flex:none;object-fit:cover;
+  display:grid;place-items:center;font-weight:800;color:var(--mut)}
+.logo.sm{width:28px;height:28px;font-size:11px}
+.sym{font-size:24px;font-weight:800;letter-spacing:-.4px}
+.name{color:var(--mut);font-size:13.5px}
+.price{margin-left:auto;text-align:right}
+.price b{font-size:26px;letter-spacing:-.5px}
+.up{color:var(--b)}.down{color:var(--s)}
+.star{border:1px solid var(--line);background:var(--card);border-radius:10px;padding:8px 12px;cursor:pointer;font-weight:600}
+.star.on{background:#fff7e0;border-color:#f5c542;color:#a16207}
+.verdict{display:flex;align-items:center;justify-content:center;flex-direction:column;margin:22px 0 6px}
+.pill{display:inline-block;border-radius:999px;padding:4px 12px;font-weight:750;font-size:12.5px;white-space:nowrap}
+.pill.xl{font-size:30px;padding:10px 28px;letter-spacing:.3px}
+.gauge{position:relative;height:10px;border-radius:5px;margin:18px auto 6px;max-width:420px;
+  background:linear-gradient(90deg,var(--ss),var(--s),#cbd5e1,var(--b),var(--sb))}
+.gauge i{position:absolute;top:-5px;width:6px;height:20px;background:var(--fg);border-radius:3px;
+  transform:translateX(-3px);transition:left .4s}
+.ticks{display:flex;justify-content:space-between;max-width:420px;margin:0 auto;color:var(--mut);font-size:11.5px}
+.duo{display:grid;grid-template-columns:repeat(2,1fr);gap:10px;margin-top:18px}
+.tile{background:var(--soft);border:1px solid var(--line);border-radius:14px;padding:12px;text-align:center}
+.tile .t{color:var(--mut);font-size:12.5px;margin-bottom:6px}
+.tfgrid{display:grid;grid-template-columns:repeat(6,1fr);gap:8px}
+.tf{border:1px solid var(--line);border-radius:14px;padding:12px 8px;text-align:center;background:var(--soft)}
+.tf.hl{border-color:var(--accent);background:var(--accent-soft)}
+.tf .t{font-weight:750;margin-bottom:6px}
+.tf .pill{font-size:11px;padding:3px 8px}
+.mini{height:5px;border-radius:3px;background:var(--line);margin-top:9px;position:relative;overflow:hidden}
+.mini span{position:absolute;top:0;bottom:0}
+.tfsub{display:flex;flex-direction:column;font-size:10.5px;white-space:nowrap;color:var(--mut);margin-top:6px;font-variant-numeric:tabular-nums}
+#chart{height:480px;border-radius:12px;overflow:hidden;border:1px solid var(--line)}
+.stats{display:grid;grid-template-columns:repeat(4,1fr);gap:10px}
+.stat{background:var(--soft);border:1px solid var(--line);border-radius:12px;padding:10px 12px}
+.stat .k{color:var(--mut);font-size:12px}
+.stat .v{font-weight:700;font-variant-numeric:tabular-nums;margin-top:2px}
+.stat .h{font-size:11px;margin-top:2px}
+.range{margin-top:16px}
+.range .bar{height:8px;border-radius:4px;background:linear-gradient(90deg,#fecaca,#e2e8f0,#bbf7d0);position:relative;margin:8px 0 4px}
+.range .bar i{position:absolute;top:-4px;width:4px;height:16px;border-radius:2px;background:var(--fg);transform:translateX(-2px)}
+.range .row{display:flex;justify-content:space-between;font-size:12px;color:var(--mut)}
+.perf{display:grid;grid-template-columns:repeat(4,1fr);gap:10px;margin-top:16px}
+aside .card{position:sticky;top:16px}
+.wl-add{display:flex;gap:6px;margin-bottom:12px}
+.wl-add input{padding:9px 12px;box-shadow:none}
+.wl-add .btn{padding:9px 14px}
+table{width:100%;border-collapse:collapse;font-size:13.5px}
+th{font-size:11.5px;color:var(--mut);font-weight:600;text-align:left;padding:6px 4px;cursor:pointer;user-select:none;white-space:nowrap}
+th.r,td.r{text-align:right}
+td{padding:8px 4px;border-top:1px solid var(--line);font-variant-numeric:tabular-nums}
+tbody tr{cursor:pointer}
+tbody tr:hover{background:var(--soft)}
+tbody tr.cur{background:var(--accent-soft)}
+.wsym{display:flex;align-items:center;gap:8px;font-weight:700}
+.wsym small{display:block;color:var(--mut);font-weight:450;font-size:11px;max-width:96px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+#wl{overflow-x:auto;margin:0 -6px;padding:0 6px}
+td .pill{font-size:10px;padding:3px 7px}
+.x{border:0;background:none;color:var(--mut);cursor:pointer;font-size:15px;padding:0 2px}
+.x:hover{color:var(--s)}
+.empty,.loading{color:var(--mut);text-align:center;padding:28px 8px}
+.err{color:var(--s);text-align:center;padding:20px}
+.foot{display:flex;justify-content:space-between;align-items:center;margin-top:10px;color:var(--mut);font-size:12px}
+.link{border:0;background:none;color:var(--accent);cursor:pointer;font-weight:600;padding:0}
+@media (max-width:980px){.grid{grid-template-columns:1fr} aside .card{position:static}}
+@media (max-width:640px){
+  .tfgrid{grid-template-columns:repeat(3,1fr)} .stats,.perf{grid-template-columns:repeat(2,1fr)}
+  .seg{grid-template-columns:repeat(2,1fr)} #chart{height:380px} .pill.xl{font-size:24px}
+  .price{margin-left:0;text-align:left;width:100%}
+}
+</style></head><body><div class="wrap">
+
+<header>
+  <div class="brand"><div class="dot"></div>Stock Signal</div>
+  <form class="search" id="f">
+    <input id="t" placeholder="Search a ticker — AAPL, SPY, QQQ…" autocomplete="off" spellcheck="false">
+    <button class="btn">Check</button>
+  </form>
+</header>
+
+<div class="seg" id="styles"></div>
+
+<div class="grid">
+  <div class="col" id="main"><div class="card loading">Loading…</div></div>
+  <aside><div class="card">
+    <h2>Watchlist</h2>
+    <form class="wl-add" id="wf">
+      <input id="wt" placeholder="Add ticker" autocomplete="off" spellcheck="false">
+      <button class="btn">Add</button>
+    </form>
+    <div id="wl"></div>
+    <div class="foot"><span id="wlTime"></span><button class="link" id="wlRefresh">Refresh</button></div>
+  </div></aside>
+</div>
+
+</div>
+<script>
+const EXCHANGES = ["NASDAQ","NYSE","AMEX","CBOE","OTC"]; // NYSE Arca ETFs show up as AMEX
+const TF_LIST = ["15m","1h","4h","1D","1W","1M"];
+const TFS = {"15m":"|15","1h":"|60","4h":"|240","1D":"","1W":"|1W","1M":"|1M"};
+const CHART_IV = {"15m":"15","1h":"60","4h":"240","1D":"D","1W":"W","1M":"M"};
+const BASE = ["description","type","close","change","currency","logoid","volume","average_volume_10d_calc",
+  "price_52_week_high","price_52_week_low","market_cap_basic","Perf.W","Perf.1M","Perf.YTD","Perf.Y"];
+const RATING = ["Recommend.All","Recommend.MA","Recommend.Other"];
+const IND = ["RSI","MACD.macd","MACD.signal","Stoch.K","ADX","CCI20","W.R","Mom","ATR",
+  "BB.upper","BB.lower","EMA20","SMA50","SMA200","VWAP"];
+// Each style blends two timeframes; the second ("main") one drives the chart and indicator panel
+const STYLES = {
+  day:   {name:"Day trading", hint:"minutes – hours", tfs:["15m","1h"]},
+  swing: {name:"Swing",       hint:"days – weeks",    tfs:["4h","1D"]},
+  pos:   {name:"Position",    hint:"weeks – months",  tfs:["1D","1W"]},
+  long:  {name:"Long-term",   hint:"months – years",  tfs:["1W","1M"]},
+};
+
+const store = {
+  get(k, d){ try { const v = localStorage.getItem(k); return v==null ? d : JSON.parse(v); } catch { return d; } },
+  set(k, v){ try { localStorage.setItem(k, JSON.stringify(v)); } catch {} },
+};
+let style = store.get("style2", "swing");
+if(!STYLES[style]) style = "swing";
+let watch = store.get("watchlist", ["AMEX:SPY","NASDAQ:QQQ","NASDAQ:AAPL","NASDAQ:NVDA"]);
+let cur = null;          // last full lookup result
+let wlRows = [];         // last watchlist data
+let wlSort = store.get("wlSort", {k:null, dir:-1});
+
+const $ = id => document.getElementById(id);
+const esc = s => String(s ?? "").replace(/[&<>"']/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"})[c]);
+const label = s => s==null ? "N/A" : s>=0.5 ? "STRONG BUY" : s>=0.1 ? "BUY" : s>-0.1 ? "NEUTRAL" : s>-0.5 ? "SELL" : "STRONG SELL";
+const KEY = {"STRONG BUY":"sb","BUY":"b","NEUTRAL":"n","SELL":"s","STRONG SELL":"ss","N/A":"n"};
+const pill = (s, cls="") => { const l = label(s), k = KEY[l];
+  return `<span class="pill ${cls}" style="color:var(--${k});background:var(--${k}-bg)">${l}</span>`; };
+const fmt = (v,d=2) => v==null ? "—" : Number(v).toLocaleString(undefined,{minimumFractionDigits:d,maximumFractionDigits:d});
+const big = v => v==null ? "—" : Intl.NumberFormat(undefined,{notation:"compact",maximumFractionDigits:2}).format(v);
+const pct = v => v==null ? "—" : `<span class="${v>=0?'up':'down'}">${v>=0?'+':''}${fmt(v)}%</span>`;
+const pos = s => s==null ? 50 : Math.max(0, Math.min(100, (s+1)/2*100));
+const logo = (id, sym, cls="") => id
+  ? `<img class="logo ${cls}" src="https://s3-symbol-logo.tradingview.com/${esc(id)}.svg" alt="" onerror="this.outerHTML='<div class=&quot;logo ${cls}&quot;>${esc(sym.split(':').pop()[0])}</div>'">`
+  : `<div class="logo ${cls}">${esc(sym.split(":").pop()[0])}</div>`;
+const blend = (v, tfs) => { const sc = tfs.map(t => v["Recommend.All"+TFS[t]]).filter(x => x!=null);
+  return sc.length ? sc.reduce((a,b)=>a+b,0)/sc.length : null; };
+
+async function scan(tickers, cols){
+  // text/plain keeps this a "simple" request so it works straight from a local file
+  const r = await fetch("https://scanner.tradingview.com/america/scan", {method:"POST",
+    headers:{"Content-Type":"text/plain"},
+    body: JSON.stringify({symbols:{tickers, query:{types:[]}}, columns:cols})});
+  if(!r.ok) throw new Error("TradingView returned "+r.status);
+  return ((await r.json()).data || []).map(row => ({s:row.s, v:Object.fromEntries(cols.map((c,i)=>[c,row.d[i]]))}));
+}
+const candidates = t => t.includes(":") ? [t] : EXCHANGES.map(e => e+":"+t);
+const pickFirst = (rows, tickers) => rows.sort((a,b) => tickers.indexOf(a.s) - tickers.indexOf(b.s))[0];
+
+async function lookup(ticker){
+  ticker = ticker.trim().toUpperCase();
+  const tickers = candidates(ticker);
+  const cols = BASE.concat(...TF_LIST.map(tf => RATING.concat(IND).map(c => c+TFS[tf])));
+  const row = pickFirst(await scan(tickers, cols), tickers);
+  return row ? {symbol:row.s, v:row.v} : {error:`No data for "${esc(ticker)}". Try adding the exchange, e.g. NYSE:${esc(ticker)}.`};
+}
+
+/* ---------- main panel ---------- */
+function render(){
+  const main = $("main");
+  if(!cur) return;
+  if(cur.error){ main.innerHTML = `<div class="card err">${cur.error}</div>`; return; }
+  const st = STYLES[style], v = cur.v, mainTf = st.tfs[1], sfx = TFS[mainTf];
+  const g = c => v[c+sfx];
+  const score = blend(v, st.tfs);
+  const inWatch = watch.includes(cur.symbol);
+  const close = v.close, lo = v.price_52_week_low, hi = v.price_52_week_high;
+  const rangePos = (lo!=null && hi!=null && hi>lo) ? (close-lo)/(hi-lo)*100 : 50;
+  const volRatio = v.average_volume_10d_calc ? v.volume / v.average_volume_10d_calc : null;
+
+  const tfTiles = TF_LIST.map(tf => {
+    const s = v["Recommend.All"+TFS[tf]], ma = v["Recommend.MA"+TFS[tf]], osc = v["Recommend.Other"+TFS[tf]];
+    const p = pos(s), k = KEY[label(s)];
+    return `<div class="tf ${st.tfs.includes(tf)?'hl':''}">
+      <div class="t">${tf}</div>${pill(s)}
+      <div class="mini"><span style="left:${Math.min(50,p)}%;right:${100-Math.max(50,p)}%;background:var(--${k})"></span></div>
+      <div class="tfsub"><span title="Moving averages">MA ${s==null?'—':fmt(ma,2)}</span><span title="Oscillators">OSC ${s==null?'—':fmt(osc,2)}</span></div>
+    </div>`; }).join("");
+
+  const rsi = g("RSI"), stoch = g("Stoch.K"), wr = g("W.R"), macd = g("MACD.macd"), sig = g("MACD.signal");
+  const hint = (txt, good) => `<div class="h ${good==null?'':good?'up':'down'}">${txt}</div>`;
+  const stat = (k, val, h="") => `<div class="stat"><div class="k">${k}</div><div class="v">${val}</div>${h}</div>`;
+  const vs = (ma) => ma==null ? "" : hint(close>=ma ? "Price above" : "Price below", close>=ma);
+
+  main.innerHTML = `
+  <div class="card">
+    <div class="hero-top">
+      ${logo(v.logoid, cur.symbol)}
+      <div><div class="sym">${esc(cur.symbol)}</div><div class="name">${esc(v.description)} · ${esc(v.type)}</div></div>
+      <div class="price"><b>${fmt(close)}</b> <span class="name">${esc(v.currency||"")}</span><div>${pct(v.change)} today</div></div>
+      <button class="star ${inWatch?'on':''}" id="star">${inWatch ? "★ Watching" : "☆ Watch"}</button>
+    </div>
+    <div class="verdict">
+      <div class="name" style="margin-bottom:10px">${st.name} signal · ${st.tfs.join(" + ")} charts</div>
+      ${pill(score, "xl")}
+    </div>
+    <div class="gauge"><i style="left:${pos(score)}%"></i></div>
+    <div class="ticks"><span>Strong sell</span><span>Neutral</span><span>Strong buy</span></div>
+    <div class="duo">
+      <div class="tile"><div class="t">Moving averages (${mainTf})</div>${pill(g("Recommend.MA"))}</div>
+      <div class="tile"><div class="t">Oscillators (${mainTf})</div>${pill(g("Recommend.Other"))}</div>
+    </div>
+  </div>
+
+  <div class="card"><h2>Every timeframe</h2><div class="tfgrid">${tfTiles}</div></div>
+
+  <div class="card"><h2>Chart · ${mainTf}</h2><div id="chart"></div></div>
+
+  <div class="card"><h2>Indicators · ${mainTf} chart</h2>
+    <div class="stats">
+      ${stat("RSI (14)", fmt(rsi), rsi==null?"":hint(rsi>70?"Overbought":rsi<30?"Oversold":"Normal", rsi>70?false:rsi<30?true:null))}
+      ${stat("MACD / Signal", `${fmt(macd)} / ${fmt(sig)}`, macd==null||sig==null?"":hint(macd>=sig?"Bullish cross":"Bearish cross", macd>=sig))}
+      ${stat("Stochastic %K", fmt(stoch), stoch==null?"":hint(stoch>80?"Overbought":stoch<20?"Oversold":"Normal", stoch>80?false:stoch<20?true:null))}
+      ${stat("Williams %R", fmt(wr), wr==null?"":hint(wr>-20?"Overbought":wr<-80?"Oversold":"Normal", wr>-20?false:wr<-80?true:null))}
+      ${stat("ADX (trend strength)", fmt(g("ADX")), g("ADX")==null?"":hint(g("ADX")>25?"Strong trend":"Weak trend", null))}
+      ${stat("CCI (20)", fmt(g("CCI20")))}
+      ${stat("Momentum", fmt(g("Mom")), g("Mom")==null?"":hint(g("Mom")>=0?"Positive":"Negative", g("Mom")>=0))}
+      ${stat("ATR (volatility)", fmt(g("ATR")))}
+      ${stat("Bollinger upper", fmt(g("BB.upper")))}
+      ${stat("Bollinger lower", fmt(g("BB.lower")))}
+      ${stat("EMA 20", fmt(g("EMA20")), vs(g("EMA20")))}
+      ${stat("SMA 50", fmt(g("SMA50")), vs(g("SMA50")))}
+      ${stat("SMA 200", fmt(g("SMA200")), vs(g("SMA200")))}
+      ${stat("VWAP", fmt(g("VWAP")), vs(g("VWAP")))}
+      ${stat("Volume", big(v.volume), volRatio==null?"":hint(`${fmt(volRatio,1)}× 10-day avg`, null))}
+      ${stat("Market cap", big(v.market_cap_basic))}
+    </div>
+    <div class="range">
+      <div class="row"><b style="color:var(--fg)">52-week range</b><span>${fmt(rangePos,0)}% of range</span></div>
+      <div class="bar"><i style="left:${Math.max(0,Math.min(100,rangePos))}%"></i></div>
+      <div class="row"><span>Low ${fmt(lo)}</span><span>High ${fmt(hi)}</span></div>
+    </div>
+    <div class="perf">
+      ${stat("1 week", pct(v["Perf.W"]))}${stat("1 month", pct(v["Perf.1M"]))}
+      ${stat("Year to date", pct(v["Perf.YTD"]))}${stat("1 year", pct(v["Perf.Y"]))}
+    </div>
+  </div>`;
+
+  $("star").onclick = () => toggleWatch(cur.symbol);
+  drawChart(cur.symbol, CHART_IV[mainTf]);
+}
+
+function drawChart(symbol, interval){
+  const box = $("chart");
+  if(!box) return;
+  box.innerHTML = '<div class="tradingview-widget-container" style="height:100%;width:100%"><div class="tradingview-widget-container__widget" style="height:100%;width:100%"></div></div>';
+  const s = document.createElement("script");
+  s.src = "https://s3.tradingview.com/external-embedding/embed-widget-advanced-chart.js";
+  s.async = true;
+  s.textContent = JSON.stringify({autosize:true, symbol, interval, timezone:"America/New_York", theme:"light",
+    style:"1", locale:"en", allow_symbol_change:false, hide_volume:false, save_image:false,
+    support_host:"https://www.tradingview.com"});
+  box.firstChild.appendChild(s);
+}
+
+async function load(ticker){
+  if(!ticker) return;
+  $("main").innerHTML = '<div class="card loading">Loading…</div>';
+  try { cur = await lookup(ticker); }
+  catch(err){ cur = {error:`Couldn't reach TradingView: ${esc(err.message)}`}; }
+  if(!cur.error) store.set("last", cur.symbol);
+  render(); drawWatch();
+}
+
+/* ---------- watchlist ---------- */
+async function refreshWatch(){
+  if(!watch.length){ wlRows = []; drawWatch(); return; }
+  const cols = ["description","close","change","logoid"].concat(TF_LIST.map(t => "Recommend.All"+TFS[t]));
+  try { wlRows = await scan(watch, cols); $("wlTime").textContent = "Updated " + new Date().toLocaleTimeString([], {hour:"numeric",minute:"2-digit"}); }
+  catch { $("wlTime").textContent = "Couldn't refresh"; }
+  drawWatch();
+}
+
+function drawWatch(){
+  const box = $("wl");
+  if(!watch.length){ box.innerHTML = '<div class="empty">No tickers yet. Add one above or tap ☆ Watch.</div>'; return; }
+  const st = STYLES[style];
+  let rows = watch.map(s => { const r = wlRows.find(x => x.s===s); return {s, v:r?.v || {}, score:r ? blend(r.v, st.tfs) : null}; });
+  const key = {sym:r=>r.s, price:r=>r.v.close ?? -Infinity, chg:r=>r.v.change ?? -Infinity, sig:r=>r.score ?? -Infinity};
+  if(wlSort.k) rows.sort((a,b) => { const x = key[wlSort.k](a), y = key[wlSort.k](b);
+    return (x<y?-1:x>y?1:0) * wlSort.dir; });
+  const arrow = k => wlSort.k===k ? (wlSort.dir>0?" ▲":" ▼") : "";
+  box.innerHTML = `<table><thead><tr>
+      <th data-k="sym">Symbol${arrow("sym")}</th><th class="r" data-k="price">Price${arrow("price")}</th>
+      <th class="r" data-k="chg">Chg${arrow("chg")}</th><th class="r" data-k="sig" title="${st.name} signal">Signal${arrow("sig")}</th><th></th>
+    </tr></thead><tbody>${rows.map(r => `
+      <tr data-s="${esc(r.s)}" class="${cur && cur.symbol===r.s ? 'cur' : ''}">
+        <td><div class="wsym">${logo(r.v.logoid, r.s, "sm")}<div>${esc(r.s.split(":").pop())}<small>${esc(r.v.description || r.s)}</small></div></div></td>
+        <td class="r">${fmt(r.v.close)}</td><td class="r">${pct(r.v.change)}</td>
+        <td class="r">${r.v.close==null ? "—" : pill(r.score)}</td>
+        <td class="r"><button class="x" data-del="${esc(r.s)}" title="Remove">×</button></td>
+      </tr>`).join("")}</tbody></table>`;
+}
+
+function toggleWatch(symbol){
+  watch = watch.includes(symbol) ? watch.filter(s => s!==symbol) : [...watch, symbol];
+  store.set("watchlist", watch);
+  render(); refreshWatch();
+}
+
+$("wl").addEventListener("click", e => {
+  const del = e.target.closest("[data-del]");
+  if(del){ e.stopPropagation(); toggleWatch(del.dataset.del); return; }
+  const th = e.target.closest("th[data-k]");
+  if(th){ const k = th.dataset.k;
+    wlSort = wlSort.k===k ? {k, dir:-wlSort.dir} : {k, dir:k==="sym"?1:-1};
+    store.set("wlSort", wlSort); drawWatch(); return; }
+  const tr = e.target.closest("tr[data-s]");
+  if(tr){ $("t").value = tr.dataset.s.split(":").pop(); load(tr.dataset.s); window.scrollTo({top:0,behavior:"smooth"}); }
+});
+
+$("wf").addEventListener("submit", async e => {
+  e.preventDefault();
+  const t = $("wt").value.trim().toUpperCase();
+  if(!t) return;
+  const tickers = candidates(t);
+  try {
+    const row = pickFirst(await scan(tickers, ["close"]), tickers);
+    if(!row){ $("wlTime").textContent = `"${t}" not found`; return; }
+    if(!watch.includes(row.s)){ watch.push(row.s); store.set("watchlist", watch); }
+    $("wt").value = ""; render(); refreshWatch();
+  } catch { $("wlTime").textContent = "Couldn't reach TradingView"; }
+});
+$("wlRefresh").onclick = refreshWatch;
+
+/* ---------- style + search ---------- */
+function drawStyles(){
+  $("styles").innerHTML = Object.entries(STYLES).map(([k,s]) =>
+    `<button type="button" data-k="${k}" class="${k===style?'on':''}">${s.name}<small>${s.hint}</small></button>`).join("");
+}
+$("styles").addEventListener("click", e => {
+  const b = e.target.closest("button"); if(!b) return;
+  style = b.dataset.k; store.set("style2", style);
+  drawStyles(); render(); drawWatch();
+});
+$("f").addEventListener("submit", e => { e.preventDefault(); load($("t").value); });
+
+drawStyles();
+const start = store.get("last", "AMEX:SPY");
+$("t").value = start.split(":").pop();
+load(start);
+refreshWatch();
+</script></body></html>
