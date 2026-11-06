@@ -139,16 +139,17 @@ const TF_LIST = ["15m","1h","4h","1D","1W","1M"];
 const TFS = {"15m":"|15","1h":"|60","4h":"|240","1D":"","1W":"|1W","1M":"|1M"};
 const CHART_IV = {"15m":"15","1h":"60","4h":"240","1D":"D","1W":"W","1M":"M"};
 const BASE = ["description","type","close","change","currency","logoid","volume","average_volume_10d_calc",
-  "price_52_week_high","price_52_week_low","market_cap_basic","Perf.W","Perf.1M","Perf.YTD","Perf.Y"];
+  "price_52_week_high","price_52_week_low","market_cap_basic","Perf.W","Perf.1M","Perf.YTD","Perf.Y","Perf.3Y","Perf.5Y","Perf.10Y"];
 const RATING = ["Recommend.All","Recommend.MA","Recommend.Other"];
 const IND = ["RSI","MACD.macd","MACD.signal","Stoch.K","ADX","CCI20","W.R","Mom","ATR",
   "BB.upper","BB.lower","EMA20","SMA50","SMA200","VWAP"];
 // Each style blends two timeframes; the second ("main") one drives the chart and indicator panel
 const STYLES = {
-  day:   {name:"Day trading", hint:"minutes – hours", tfs:["15m","1h"]},
-  swing: {name:"Swing",       hint:"days – weeks",    tfs:["4h","1D"]},
-  pos:   {name:"Position",    hint:"weeks – months",  tfs:["1D","1W"]},
-  long:  {name:"Long-term",   hint:"months – years",  tfs:["1W","1M"]},
+  day:   {name:"Day trading", hint:"minutes – hours",  tfs:["15m","1h"]},
+  swing: {name:"Swing",       hint:"2 days – 4 weeks", tfs:["4h","1D"]},
+  pos:   {name:"Position",    hint:"1 – 12 months",    tfs:["1D","1W"]},
+  // TradingView rates nothing above the monthly chart, so multi-year holds also weigh the long trend
+  long:  {name:"Long-term",   hint:"1 – 10 years",     tfs:["1W","1M"], trend:true},
 };
 
 const store = {
@@ -175,8 +176,13 @@ const pos = s => s==null ? 50 : Math.max(0, Math.min(100, (s+1)/2*100));
 const logo = (id, sym, cls="") => id
   ? `<img class="logo ${cls}" src="https://s3-symbol-logo.tradingview.com/${esc(id)}.svg" alt="" onerror="this.outerHTML='<div class=&quot;logo ${cls}&quot;>${esc(sym.split(':').pop()[0])}</div>'">`
   : `<div class="logo ${cls}">${esc(sym.split(":").pop()[0])}</div>`;
-const blend = (v, tfs) => { const sc = tfs.map(t => v["Recommend.All"+TFS[t]]).filter(x => x!=null);
-  return sc.length ? sc.reduce((a,b)=>a+b,0)/sc.length : null; };
+// +1 when price is above both the 200-week and 50-month averages, -1 when below both
+const trendScore = v => { const s = [v["SMA200|1W"], v["SMA50|1M"]].filter(x => x!=null).map(x => v.close>=x ? 1 : -1);
+  return s.length ? s.reduce((a,b)=>a+b,0)/s.length : null; };
+const styleScore = (v, st) => { const sc = st.tfs.map(t => v["Recommend.All"+TFS[t]]);
+  if(st.trend) sc.push(trendScore(v));
+  const ok = sc.filter(x => x!=null);
+  return ok.length ? ok.reduce((a,b)=>a+b,0)/ok.length : null; };
 
 async function scan(tickers, cols){
   // text/plain keeps this a "simple" request so it works straight from a local file
@@ -204,7 +210,10 @@ function render(){
   if(cur.error){ main.innerHTML = `<div class="card err">${cur.error}</div>`; return; }
   const st = STYLES[style], v = cur.v, mainTf = st.tfs[1], sfx = TFS[mainTf];
   const g = c => v[c+sfx];
-  const score = blend(v, st.tfs);
+  const score = styleScore(v, st);
+  const side = ma => ma==null ? "—" : v.close>=ma ? "above" : "below";
+  const trendNote = st.trend ? `<div class="name" style="margin-top:12px;text-align:center">Long-term trend: price is
+    <b>${side(v["SMA200|1W"])}</b> its 200-week average and <b>${side(v["SMA50|1M"])}</b> its 50-month average</div>` : "";
   const inWatch = watch.includes(cur.symbol);
   const close = v.close, lo = v.price_52_week_low, hi = v.price_52_week_high;
   const rangePos = (lo!=null && hi!=null && hi>lo) ? (close-lo)/(hi-lo)*100 : 50;
@@ -233,8 +242,9 @@ function render(){
       <button class="star ${inWatch?'on':''}" id="star">${inWatch ? "★ Watching" : "☆ Watch"}</button>
     </div>
     <div class="verdict">
-      <div class="name" style="margin-bottom:10px">${st.name} signal · ${st.tfs.join(" + ")} charts</div>
+      <div class="name" style="margin-bottom:10px">${st.name} signal · ${st.tfs.join(" + ")} charts${st.trend ? " + long-term trend" : ""}</div>
       ${pill(score, "xl")}
+      ${trendNote}
     </div>
     <div class="gauge"><i style="left:${pos(score)}%"></i></div>
     <div class="ticks"><span>Strong sell</span><span>Neutral</span><span>Strong buy</span></div>
@@ -275,6 +285,7 @@ function render(){
     <div class="perf">
       ${stat("1 week", pct(v["Perf.W"]))}${stat("1 month", pct(v["Perf.1M"]))}
       ${stat("Year to date", pct(v["Perf.YTD"]))}${stat("1 year", pct(v["Perf.Y"]))}
+      ${stat("3 years", pct(v["Perf.3Y"]))}${stat("5 years", pct(v["Perf.5Y"]))}${stat("10 years", pct(v["Perf.10Y"]))}
     </div>
   </div>`;
 
@@ -307,7 +318,7 @@ async function load(ticker){
 /* ---------- watchlist ---------- */
 async function refreshWatch(){
   if(!watch.length){ wlRows = []; drawWatch(); return; }
-  const cols = ["description","close","change","logoid"].concat(TF_LIST.map(t => "Recommend.All"+TFS[t]));
+  const cols = ["description","close","change","logoid","SMA200|1W","SMA50|1M"].concat(TF_LIST.map(t => "Recommend.All"+TFS[t]));
   try { wlRows = await scan(watch, cols); $("wlTime").textContent = "Updated " + new Date().toLocaleTimeString([], {hour:"numeric",minute:"2-digit"}); }
   catch { $("wlTime").textContent = "Couldn't refresh"; }
   drawWatch();
@@ -317,7 +328,7 @@ function drawWatch(){
   const box = $("wl");
   if(!watch.length){ box.innerHTML = '<div class="empty">No tickers yet. Add one above or tap ☆ Watch.</div>'; return; }
   const st = STYLES[style];
-  let rows = watch.map(s => { const r = wlRows.find(x => x.s===s); return {s, v:r?.v || {}, score:r ? blend(r.v, st.tfs) : null}; });
+  let rows = watch.map(s => { const r = wlRows.find(x => x.s===s); return {s, v:r?.v || {}, score:r ? styleScore(r.v, st) : null}; });
   const key = {sym:r=>r.s, price:r=>r.v.close ?? -Infinity, chg:r=>r.v.change ?? -Infinity, sig:r=>r.score ?? -Infinity};
   if(wlSort.k) rows.sort((a,b) => { const x = key[wlSort.k](a), y = key[wlSort.k](b);
     return (x<y?-1:x>y?1:0) * wlSort.dir; });
