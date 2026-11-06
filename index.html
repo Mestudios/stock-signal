@@ -50,6 +50,7 @@ input:focus{border-color:var(--accent);box-shadow:0 0 0 3px var(--accent-soft)}
 .up{color:var(--b)}.down{color:var(--s)}
 .star{border:1px solid var(--line);background:var(--card);border-radius:10px;padding:8px 12px;cursor:pointer;font-weight:600}
 .star.on{background:#fff7e0;border-color:#f5c542;color:#a16207}
+.warn{margin-top:16px;background:#fff7e0;border:1px solid #f5c542;color:#854d0e;border-radius:12px;padding:10px 14px;font-size:13.5px}
 .verdict{display:flex;align-items:center;justify-content:center;flex-direction:column;margin:22px 0 6px}
 .pill{display:inline-block;border-radius:999px;padding:4px 12px;font-weight:750;font-size:12.5px;white-space:nowrap}
 .pill.xl{font-size:30px;padding:10px 28px;letter-spacing:.3px}
@@ -147,9 +148,10 @@ const IND = ["RSI","MACD.macd","MACD.signal","Stoch.K","ADX","CCI20","W.R","Mom"
 const STYLES = {
   day:   {name:"Day trading", hint:"minutes – hours",  tfs:["15m","1h"]},
   swing: {name:"Swing",       hint:"2 days – 4 weeks", tfs:["4h","1D"]},
-  pos:   {name:"Position",    hint:"1 – 12 months",    tfs:["1D","1W"]},
+  // ma: share of each chart's score taken from moving averages (trend) rather than oscillators
+  pos:   {name:"Position",    hint:"1 – 12 months",    tfs:["1W","1M"], ma:0.75},
   // TradingView rates nothing above the monthly chart, so multi-year holds also weigh the long trend
-  long:  {name:"Long-term",   hint:"1 – 10 years",     tfs:["1W","1M"], trend:true},
+  long:  {name:"Long-term",   hint:"1 – 10 years",     tfs:["1M"], ma:0.75, trend:true},
 };
 
 const store = {
@@ -176,10 +178,15 @@ const pos = s => s==null ? 50 : Math.max(0, Math.min(100, (s+1)/2*100));
 const logo = (id, sym, cls="") => id
   ? `<img class="logo ${cls}" src="https://s3-symbol-logo.tradingview.com/${esc(id)}.svg" alt="" onerror="this.outerHTML='<div class=&quot;logo ${cls}&quot;>${esc(sym.split(':').pop()[0])}</div>'">`
   : `<div class="logo ${cls}">${esc(sym.split(":").pop()[0])}</div>`;
-// +1 when price is above both the 200-week and 50-month averages, -1 when below both
-const trendScore = v => { const s = [v["SMA200|1W"], v["SMA50|1M"]].filter(x => x!=null).map(x => v.close>=x ? 1 : -1);
+// Price vs its 200-week and 50-month averages: 10%+ above = +1, 10%+ below = -1, scaled in between
+const trendScore = v => { const s = [v["SMA200|1W"], v["SMA50|1M"]].filter(x => x).map(x => Math.max(-1, Math.min(1, (v.close/x - 1) / 0.10)));
   return s.length ? s.reduce((a,b)=>a+b,0)/s.length : null; };
-const styleScore = (v, st) => { const sc = st.tfs.map(t => v["Recommend.All"+TFS[t]]);
+// Longer holds lean on trend (moving averages) over short-term oscillator swings
+const tfScore = (v, tf, st) => { const all = v["Recommend.All"+TFS[tf]], ma = v["Recommend.MA"+TFS[tf]], osc = v["Recommend.Other"+TFS[tf]];
+  return st.ma==null || ma==null || osc==null ? all : st.ma*ma + (1-st.ma)*osc; };
+// Leveraged and inverse funds reset daily and decay, so longer-horizon ratings mislead
+const isLeveraged = v => v.type==="fund" && /\b([1-9](\.\d+)?X|ULTRA\w*|BEAR|INVERSE)\b|\bSHORT\b(?!.*\b(TREASURY|TERM|DURATION|MATURITY|BOND|TIPS)\b)/i.test(v.description||"");
+const styleScore = (v, st) => { const sc = st.tfs.map(t => tfScore(v, t, st));
   if(st.trend) sc.push(trendScore(v));
   const ok = sc.filter(x => x!=null);
   return ok.length ? ok.reduce((a,b)=>a+b,0)/ok.length : null; };
@@ -208,7 +215,7 @@ function render(){
   const main = $("main");
   if(!cur) return;
   if(cur.error){ main.innerHTML = `<div class="card err">${cur.error}</div>`; return; }
-  const st = STYLES[style], v = cur.v, mainTf = st.tfs[1], sfx = TFS[mainTf];
+  const st = STYLES[style], v = cur.v, mainTf = st.tfs[st.tfs.length-1], sfx = TFS[mainTf];
   const g = c => v[c+sfx];
   const score = styleScore(v, st);
   const side = ma => ma==null ? "—" : v.close>=ma ? "above" : "below";
@@ -241,8 +248,12 @@ function render(){
       <div class="price"><b>${fmt(close)}</b> <span class="name">${esc(v.currency||"")}</span><div>${pct(v.change)} today</div></div>
       <button class="star ${inWatch?'on':''}" id="star">${inWatch ? "★ Watching" : "☆ Watch"}</button>
     </div>
+    ${isLeveraged(v) ? `<div class="warn">⚠ <b>Leveraged or inverse fund.</b> These reset daily and lose value over time,
+      so ratings are only meaningful for holds of a few days. Treat Position and Long-term signals with caution.</div>` : ""}
+    ${v["ATR|1M"] && v["ATR|1M"]/close < 0.01 ? `<div class="warn">⚠ <b>Barely moves.</b> This looks like a cash or
+      short-term bond fund, so buy/sell ratings aren't meaningful. Small dips from dividend payouts can read as "sell".</div>` : ""}
     <div class="verdict">
-      <div class="name" style="margin-bottom:10px">${st.name} signal · ${st.tfs.join(" + ")} charts${st.trend ? " + long-term trend" : ""}</div>
+      <div class="name" style="margin-bottom:10px">${st.name} signal · ${st.tfs.join(" + ")} chart${st.tfs.length>1?"s":""}${st.trend ? " + long-term trend" : ""}${st.ma ? " · trend-weighted" : ""}</div>
       ${pill(score, "xl")}
       ${trendNote}
     </div>
@@ -318,7 +329,7 @@ async function load(ticker){
 /* ---------- watchlist ---------- */
 async function refreshWatch(){
   if(!watch.length){ wlRows = []; drawWatch(); return; }
-  const cols = ["description","close","change","logoid","SMA200|1W","SMA50|1M"].concat(TF_LIST.map(t => "Recommend.All"+TFS[t]));
+  const cols = ["description","close","change","logoid","SMA200|1W","SMA50|1M"].concat(...TF_LIST.map(t => RATING.map(c => c+TFS[t])));
   try { wlRows = await scan(watch, cols); $("wlTime").textContent = "Updated " + new Date().toLocaleTimeString([], {hour:"numeric",minute:"2-digit"}); }
   catch { $("wlTime").textContent = "Couldn't refresh"; }
   drawWatch();
